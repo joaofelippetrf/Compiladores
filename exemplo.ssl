@@ -1,0 +1,26 @@
+// exemplo em Simple Script Language
+
+type Ponto = struct { x, y : integer };
+type Vetor = array [ 10 ] of integer;
+
+var origem : Ponto;
+var msg    : string;
+
+/* calcula o fatorial de n */
+function fatorial ( n : integer ) : integer
+{
+    var acc, i : integer;
+
+    acc = 1;
+    i   = 2;
+    while ( i <= n )
+    {
+        acc = acc * i;
+        i++;
+    }
+    if ( acc >= 1000 && n != 0 )
+        msg = "grande";
+    else
+        msg = "pequeno";
+    return_flag = 'x';
+}

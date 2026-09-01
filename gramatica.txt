@@ -1,0 +1,147 @@
+================================================================================
+GRAMATICA DA LINGUAGEM "Simple Script Language" (SSL)
+Baseada no cap. 2.1 de "Compiladores" - Prof. Luiz Guedes (IME / UFF)
+================================================================================
+
+--------------------------------------------------------------------------------
+1. GRAMATICA LIVRE DE CONTEXTO  G = (V, Sigma, P, S)
+   S = P (simbolo inicial)
+   Sigma = conjunto de tokens produzidos pelo Analisador Lexico
+--------------------------------------------------------------------------------
+
+-- Programa ---------------------------------------------------------------------
+P    -> LDE
+
+LDE  -> LDE DE
+      | DE
+
+DE   -> DF
+      | DT
+      | DV
+
+-- Tipos ------------------------------------------------------------------------
+T    -> 'integer'
+      | 'char'
+      | 'boolean'
+      | 'string'
+      | ID
+
+DT   -> 'type' ID '=' 'array' '[' NUM ']' 'of' T
+      | 'type' ID '=' 'struct' '{' DC '}'
+      | 'type' ID '=' T
+
+DC   -> DC ';' LI ':' T
+      | LI ':' T
+
+-- Funcoes ----------------------------------------------------------------------
+DF   -> 'function' ID '(' LP ')' ':' T B
+
+LP   -> LP ',' ID ':' T
+      | ID ':' T
+
+-- Blocos e declaracao de variaveis ---------------------------------------------
+B    -> '{' LDV LS '}'
+
+LDV  -> LDV DV
+      | DV
+
+DV   -> 'var' LI ':' T ';'
+
+LI   -> LI ',' ID
+      | ID
+
+LS   -> LS S
+      | S
+
+-- Comandos ---------------------------------------------------------------------
+S    -> 'if' '(' E ')' S
+      | 'if' '(' E ')' S 'else' S
+      | 'while' '(' E ')' S
+      | 'do' S 'while' '(' E ')' ';'
+      | B
+      | LV '=' E ';'
+      | 'break' ';'
+      | 'continue' ';'
+
+-- Expressoes (precedencia crescente: E < L < R < Y < F) ------------------------
+E    -> E '&&' L
+      | E '||' L
+      | L
+
+L    -> L '<'  R
+      | L '>'  R
+      | L '<=' R
+      | L '>=' R
+      | L '==' R
+      | L '!=' R
+      | R
+
+R    -> R '+' Y
+      | R '-' Y
+      | Y
+
+Y    -> Y '*' F
+      | Y '/' F
+      | F
+
+F    -> LV
+      | '++' LV
+      | '--' LV
+      | LV '++'
+      | LV '--'
+      | '(' E ')'
+      | ID '(' LE ')'
+      | '-' F
+      | '!' F
+      | TRUE
+      | FALSE
+      | CHR
+      | STR
+      | NUM
+
+LE   -> LE ',' E
+      | E
+
+LV   -> LV '.' ID
+      | LV '[' E ']'
+      | ID
+
+-- Simbolos terminais com lexema variavel ---------------------------------------
+ID    -> Id
+TRUE  -> 'true'
+FALSE -> 'false'
+CHR   -> c
+STR   -> s
+NUM   -> n
+
+--------------------------------------------------------------------------------
+2. DEFINICOES REGULARES (parte reconhecida pelo Analisador Lexico)
+--------------------------------------------------------------------------------
+
+letra  = 'a'..'z' + 'A'..'Z'
+digito = '0'..'9'
+
+Id     = letra . ( letra + digito + '_' )*
+n      = digito . digito*
+c      = "'" . any . "'"
+s      = '"' . any* . '"'
+
+Onde any representa qualquer caractere lido do arquivo.
+
+--------------------------------------------------------------------------------
+3. ALFABETO DE TOKENS (Sigma)
+--------------------------------------------------------------------------------
+
+Palavras reservadas (ordem alfabetica, p/ busca binaria):
+  array boolean break char continue do else false function if
+  integer of string struct true type var while
+
+Simbolos:
+  :   ;   ,   =   [   ]   {   }   (   )   &&  ||
+  <   >   <=  >=  !=  ==  +   ++  -   --  *   /   .   !
+
+Tokens regulares:
+  CHARACTER  (c)   NUMERAL (n)   STRINGVAL (s)   ID (Id)
+
+Token de erro:
+  UNKNOWN
