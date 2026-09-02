@@ -49,12 +49,69 @@ existe) e o valor do lexema.
 | `main.c` | Driver: percorre o arquivo e imprime a tabela de tokens |
 | `Makefile` | Compilação, execução do exemplo e limpeza |
 | `exemplo.ssl` | Programa de teste que exercita as construções da linguagem |
-| `documentacao.pdf` | Documentação completa do projeto |
+| `.gitignore` | Ignora binário, objetos e `.DS_Store` |
+
+## Como ler a gramática
+
+A gramática completa está em `gramatica.txt`, escrita em uma notação padrão para descrever
+linguagens. Três convenções bastam para lê-la:
+
+**A seta `->` significa "é formado por".** A regra abaixo diz que uma Declaração Externa é
+formada por uma Declaração de Função, *ou* uma de Tipo, *ou* uma de Variáveis. A barra `|` é
+o "ou" — apenas uma abreviação para não repetir `DE ->` três vezes:
+
+```
+DE  ->  DF  |  DT  |  DV
+```
+
+**As siglas são nomes de categorias da linguagem, não código.** `DE` nunca aparece em um
+programa; é o nome que damos ao lugar da linguagem onde cabe uma declaração. Cada sigla é a
+inicial do seu nome em português — veja a legenda adiante.
+
+**O que está entre aspas é literal**, digitado tal e qual pelo programador. Assim, a regra
+
+```
+DT  ->  'type' ID '=' 'array' '[' NUM ']' 'of' T
+```
+
+diz: *a palavra `type`, seguida de um nome, um `=`, a palavra `array`, um número entre
+colchetes, a palavra `of` e um tipo*. Ou seja, ela descreve exatamente esta linha:
+
+```
+type Vetor = array [ 10 ] of integer;
+```
+
+**A recursão é a forma de dizer "vários".** Quando uma sigla aparece dentro da própria
+definição, como `LDE` abaixo, o que se está dizendo é "uma ou mais": ou a lista é uma única
+declaração, ou é *uma lista menor seguida de mais uma declaração*. Aplicando a regra
+repetidamente, monta-se uma lista de qualquer tamanho — é o que permite descrever infinitos
+programas com um punhado de regras.
+
+```
+LDE  ->  LDE DE  |  DE
+```
+
+### Legenda das siglas
+
+| Sigla | Significa | Exemplo na linguagem |
+|---|---|---|
+| `P` | Programa | o arquivo inteiro |
+| `LDE` / `DE` | Lista de Declarações Externas / Declaração Externa | tudo que se declara fora de funções |
+| `DT` / `DC` | Declaração de Tipo / de Campos | `type Ponto = struct { x, y : integer }` |
+| `DF` / `LP` | Declaração de Função / Lista de Parâmetros | `function f ( n : integer ) : integer` |
+| `DV` / `LDV` | Declaração de Variáveis / lista delas | `var acc, i : integer;` |
+| `LI` | Lista de Identificadores | o `acc, i` do exemplo acima |
+| `T` | Tipo | `integer`, `string`, `Ponto` |
+| `B` | Bloco | `{ ... }` |
+| `S` / `LS` | *Statement* (comando) / Lista de comandos | `while (...) ...` |
+| `E` / `LE` | Expressão / Lista de Expressões | `acc * i`, argumentos de uma chamada |
+| `L`, `R`, `Y`, `F` | níveis internos da expressão | veja precedência adiante |
+| `LV` | *Left Value* — o que pode receber atribuição | `x`, `p.y`, `v[3]` |
+| `ID`, `NUM`, `CHR`, `STR` | nome, número, caractere e texto literais | `acc`, `1000`, `'x'`, `"grande"` |
 
 ## A linguagem
 
-A gramática completa está em `gramatica.txt`. Em resumo, um programa é uma lista de
-declarações externas — funções, tipos ou variáveis:
+Um programa é uma lista de declarações externas — funções, tipos ou variáveis:
 
 ```
 P    -> LDE
@@ -62,8 +119,8 @@ LDE  -> LDE DE  |  DE
 DE   -> DF  |  DT  |  DV
 ```
 
-Os tipos primitivos são `integer`, `char`, `boolean` e `string`, e novos tipos podem ser
-declarados como vetores, estruturas ou sinônimos:
+Os tipos primitivos são `integer`, `char`, `boolean` e `string`. Novos tipos podem ser
+declarados como vetores, estruturas ou sinônimos de um tipo existente:
 
 ```
 DT   -> 'type' ID '=' 'array' '[' NUM ']' 'of' T
@@ -71,20 +128,44 @@ DT   -> 'type' ID '=' 'array' '[' NUM ']' 'of' T
       | 'type' ID '=' T
 ```
 
+Uma função tem nome, lista de parâmetros tipados, tipo de retorno e um bloco; um bloco começa
+com as declarações de variáveis locais e segue com os comandos:
+
+```
+DF   -> 'function' ID '(' LP ')' ':' T B
+B    -> '{' LDV LS '}'
+DV   -> 'var' LI ':' T ';'
+```
+
 Os comandos disponíveis são `if`/`else`, `while`, `do…while`, blocos, atribuição, `break` e
-`continue`. Nas expressões, a precedência dos operadores está codificada na própria estrutura
-das regras — cada nível só pode conter os níveis mais internos:
+`continue`:
 
 ```
-E    -> E '&&' L  |  E '||' L  |  L            (lógicos)
-L    -> L '<' R | L '>' R | ... | L '!=' R | R (relacionais)
-R    -> R '+' Y  |  R '-' Y  |  Y              (aditivos)
-Y    -> Y '*' F  |  Y '/' F  |  F              (multiplicativos)
-F    -> LV | '++' LV | '(' E ')' | ID '(' LE ')' | NUM | STR | ...
+S    -> 'if' '(' E ')' S
+      | 'if' '(' E ')' S 'else' S
+      | 'while' '(' E ')' S
+      | 'do' S 'while' '(' E ')' ';'
+      | B
+      | LV '=' E ';'
+      | 'break' ';'
+      | 'continue' ';'
 ```
 
-A recursão à esquerda garante associatividade à esquerda. Como está, a gramática é adequada
-a um analisador sintático ascendente.
+Nas expressões, a precedência dos operadores está codificada na própria estrutura das regras.
+Cada nível só consegue conter os níveis mais internos, então o que estiver mais fundo é
+avaliado primeiro — por isso `a + b * c` multiplica antes de somar, sem nenhuma regra extra:
+
+```
+E    -> E '&&' L  |  E '||' L  |  L             (lógicos, menor precedência)
+L    -> L '<' R | L '>' R | ... | L '!=' R | R  (relacionais)
+R    -> R '+' Y  |  R '-' Y  |  Y               (soma e subtração)
+Y    -> Y '*' F  |  Y '/' F  |  F               (multiplicação e divisão)
+F    -> LV | '++' LV | '(' E ')' | ID '(' LE ')' | NUM | STR | ...   (maior)
+```
+
+Pelo mesmo mecanismo, a recursão à esquerda (`R -> R '+' Y`) faz os operadores associarem à
+esquerda: `a - b - c` é lido como `(a - b) - c`. Como está, a gramática é adequada a um
+analisador sintático ascendente.
 
 ## Os tokens
 
@@ -251,3 +332,63 @@ Definidos em `lexer.h` e ajustáveis por recompilação:
 | `HASH_SIZE` | 211 | posições da tabela de nomes |
 
 Lexemas mais longos que o limite são truncados, sem interromper a análise.
+
+## Prompt utilizado
+
+Este projeto foi gerado a partir do seguinte prompt:
+
+```
+Implemente um analisador léxico em C para a "Simple Script Language" (SSL), uma
+linguagem imperativa de sintaxe inspirada em ECMAScript, com tipagem estática,
+tipos agregados e funções. Escreva também a gramática da linguagem em um arquivo
+à parte.
+
+## Gramática (BNF, símbolo inicial P)
+
+P    -> LDE
+LDE  -> LDE DE | DE
+DE   -> DF | DT | DV
+
+T    -> 'integer' | 'char' | 'boolean' | 'string' | ID
+DT   -> 'type' ID '=' 'array' '[' NUM ']' 'of' T
+      | 'type' ID '=' 'struct' '{' DC '}'
+      | 'type' ID '=' T
+DC   -> DC ';' LI ':' T | LI ':' T
+
+DF   -> 'function' ID '(' LP ')' ':' T B
+LP   -> LP ',' ID ':' T | ID ':' T
+
+B    -> '{' LDV LS '}'
+LDV  -> LDV DV | DV
+DV   -> 'var' LI ':' T ';'
+LI   -> LI ',' ID | ID
+LS   -> LS S | S
+
+S    -> 'if' '(' E ')' S
+      | 'if' '(' E ')' S 'else' S
+      | 'while' '(' E ')' S
+      | 'do' S 'while' '(' E ')' ';'
+      | B
+      | LV '=' E ';'
+      | 'break' ';'
+      | 'continue' ';'
+
+E    -> E '&&' L | E '||' L | L
+L    -> L '<' R | L '>' R | L '<=' R | L '>=' R | L '==' R | L '!=' R | R
+R    -> R '+' Y | R '-' Y | Y
+Y    -> Y '*' F | Y '/' F | F
+F    -> LV | '++' LV | '--' LV | LV '++' | LV '--'
+      | '(' E ')' | ID '(' LE ')' | '-' F | '!' F
+      | TRUE | FALSE | CHR | STR | NUM
+LE   -> LE ',' E | E
+LV   -> LV '.' ID | LV '[' E ']' | ID
+
+## Definições regulares
+
+letra  = 'a'..'z' + 'A'..'Z'
+digito = '0'..'9'
+Id     = letra . ( letra + digito + '_' )*
+n      = digito . digito*
+c      = "'" . any . "'"
+s      = '"' . any* . '"'
+```
